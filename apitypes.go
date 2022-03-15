@@ -35,7 +35,7 @@ type IconikFile struct {
 
 // IError encapsulates an error message returned by the Iconik API.
 //
-// Failures to connect to the B2 servers, and networking problems in general can cause errors
+// Failures to connect to the Iconik servers, and networking problems in general can cause errors
 type IError struct {
 	Errors []string `json:"errors"`
 }

@@ -7,29 +7,13 @@ import (
 	"testing"
 )
 
-func generateSearchBody(tag string) SearchCriteriaSchema {
-	filter := SearchFilter{
-		Operator: "AND",
-		Terms: []FilterTerm{{
-			Name:  "metadata._gcvi_tags",
-			Value: tag,
-		}},
-	}
-	schema := SearchCriteriaSchema{
-		DocTypes: []string{"assets"},
-		Filter:   filter,
-	}
-	return schema
-}
-
 func testSendRequest(t *testing.T) {
-	searchEndpoint := "search/v1/search/"
 	expected := SearchResponse{Objects: []IconikObject{{[]IconikFile{IconikFile{Name: "test"}}}}}
 
 	//Start a local HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Test request parameters
-		if req.URL.String() == iconikHost + searchEndpoint {
+		if req.URL.String() == iconikHost+searchEndpoint {
 			payload, _ := json.Marshal(expected)
 			rw.Write(payload)
 		}
@@ -43,9 +27,8 @@ func testSendRequest(t *testing.T) {
 	}
 	client, _ := NewIClient(creds, "")
 
-	req := generateSearchBody("testTag")
-	resp := &SearchResponse{}
-	err := client.ApiRequest(searchEndpoint, req, resp)
+	req := makeSearchBody("testTag")
+	resp, err := client.SearchWithTag("Teaching")
 	if err != nil {
 		t.Fatalf("ApiRequest(%s, %v) failed: %v", searchEndpoint, req, err)
 	}
