@@ -100,24 +100,16 @@ func (c *IClient) post(apiPath string, body io.Reader) (*http.Response, error) {
 	return resp, err
 }
 
-// Looks for an error message in the response body and parses it into a
-// IError object
-func (c *IClient) parseError(body []byte) error {
-	err := &IError{}
-	if json.Unmarshal(body, err) != nil {
-		return nil
-	}
-	return err
-}
-
 // Attempts to parse a response body into the provided result struct
-func (c *IClient) parseResponse(resp *http.Response, result interface{}) error {
+
+func (c *IClient) parseSearchResponse(resp *http.Response) (*SearchResponse, error) {
+	response := SearchResponse{}
 	defer resp.Body.Close()
 
 	// Read response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if c.Debug {
@@ -127,28 +119,19 @@ func (c *IClient) parseResponse(resp *http.Response, result interface{}) error {
 	// Check response code
 	switch resp.StatusCode {
 	case 200: // Response is OK
-	case 401:
-		if err := c.parseError(body); err != nil {
-			return err
-		}
-		return &IError{
-			Errors: []string{"UNKNOWN; error message not parsable"},
-		}
 	default:
-		if err := c.parseError(body); err != nil {
-			return err
+		iErr := &IError{}
+		if err := json.Unmarshal(body, iErr); err != nil {
+			if c.Debug {
+				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
+			}
+			return nil, &IError{
+				Errors: []string{"UNKNOWN; error message not parsable"},
+			}
 		}
-		return &IError{
-			Errors: []string{"UNKNOWN; error message not parsable"},
-		}
+		return nil, iErr
 	}
-
-	return json.Unmarshal(body, result)
-}
-
-func (c *IClient) parseSearchResponse(resp *http.Response) (*SearchResponse, error) {
-	response := SearchResponse{}
-	err := c.parseResponse(resp, &response)
+	err = json.Unmarshal(body, &response)
 	return &response, err
 }
 
@@ -187,7 +170,7 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	resp, err := c.post(searchEndpoint, bytes.NewReader(body))
 	if err != nil {
 		if c.Debug {
-			log.Printf("IClient.post(%s, %v, %v) returned an error: %v\n", searchEndpoint, body, err)
+			log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
 		}
 		return &SearchResponse{}, err
 	}
