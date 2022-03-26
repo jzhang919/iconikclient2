@@ -26,11 +26,26 @@ type SearchResponse struct {
 }
 
 type IconikObject struct {
-	Files []IconikFile `json:"files"`
+	Id      string        `json:"id"`
+	Files   []IconikFile  `json:"files"`
+	Proxies []IconikProxy `json:"proxies"`
+}
+
+type IconikProxy struct {
+	Id string `json:"id"`
 }
 
 type IconikFile struct {
 	Name string `json:"name"`
+}
+
+// ProxyGetUrlSchema is empty. This is because as of 2022Q1, proxies/{proxy_id}
+// calls take no arguments in their body.
+type ProxyGetUrlSchema struct {
+}
+
+type ProxyGetUrlResponse struct {
+	URL string `json:"url"`
 }
 
 // IError encapsulates an error message returned by the Iconik API.

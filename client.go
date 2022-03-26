@@ -4,6 +4,7 @@ package iconik
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -11,8 +12,9 @@ import (
 )
 
 const (
-	iconikHost     = "https://app.iconik.io/API/"
-	searchEndpoint = "search/v1/search/"
+	iconikHost            = "https://app.iconik.io/API/"
+	searchEndpoint        = "search/v1/search/"
+	proxyEndpointTemplate = "files/v1/assets/%s/proxies/%s/download_url/"
 )
 
 // Credentials are the identification required by the Iconik API
@@ -56,13 +58,19 @@ func NewIClient(creds Credentials, host string) (*IClient, error) {
 }
 
 // Create an authorized request using the client's credentials
-func (c *IClient) newRequest(method, apiPath string, body io.Reader) (*http.Request, error) {
+func (c *IClient) newRequest(method, apiPath string, body io.Reader, headerSettings http.Header) (*http.Request, error) {
 	path := c.host + apiPath
 	header := make(http.Header)
-	header.Add("accept", "application/json")
 	header.Add("App-Id", c.AppID)
-	header.Add("Content-Type", "application/json")
 	header.Add("Auth-Token", c.Token)
+	for k, vs := range headerSettings {
+		for _, value := range vs {
+			if c.Debug {
+				log.Printf("Adding (%s, %s) to header\n", k, value)
+			}
+			header.Add(k, value)
+		}
+	}
 
 	req, err := http.NewRequest(method, path, body)
 	req.Header = header
@@ -81,7 +89,7 @@ func (c *IClient) newRequest(method, apiPath string, body io.Reader) (*http.Requ
 // Dispatch an authorized API GET request
 func (c *IClient) get(apiPath string, body io.Reader, header http.Header) (*http.Response, error) {
 
-	req, err := c.newRequest(http.MethodGet, apiPath, body)
+	req, err := c.newRequest(http.MethodGet, apiPath, body, header)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +98,8 @@ func (c *IClient) get(apiPath string, body io.Reader, header http.Header) (*http
 	return resp, err
 }
 
-func (c *IClient) post(apiPath string, body io.Reader) (*http.Response, error) {
-	req, err := c.newRequest(http.MethodPost, apiPath, body)
+func (c *IClient) post(apiPath string, body io.Reader, header http.Header) (*http.Response, error) {
+	req, err := c.newRequest(http.MethodPost, apiPath, body, header)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +143,42 @@ func (c *IClient) parseSearchResponse(resp *http.Response) (*SearchResponse, err
 	return &response, err
 }
 
+func (c *IClient) parseProxyUrlResponse(resp *http.Response) (string, error) {
+	response := ProxyGetUrlResponse{}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if c.Debug {
+		log.Printf("Response: %s", body)
+	}
+
+	// Check response code
+	switch resp.StatusCode {
+	case 200: // Response is OK
+	default:
+		iErr := &IError{}
+		if err := json.Unmarshal(body, iErr); err != nil {
+			if c.Debug {
+				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
+			}
+			return "", &IError{
+				Errors: []string{"UNKNOWN; error message not parsable"},
+			}
+		}
+		return "", iErr
+	}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return "", err
+	}
+	return response.URL, nil
+}
+
 func makeSearchBody(tag string) SearchCriteriaSchema {
 	filter := SearchFilter{
 		Operator: "AND",
@@ -150,6 +194,10 @@ func makeSearchBody(tag string) SearchCriteriaSchema {
 	return schema
 }
 
+func makeProxyUrlBody() ProxyGetUrlSchema {
+	return ProxyGetUrlSchema{}
+}
+
 // SearchWithTag performs an Iconik API Search for assets with the matching tag.
 // Args:
 // apiPath: The API Resource
@@ -161,13 +209,15 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	if err != nil {
 		return &SearchResponse{}, err
 	}
-
+	header := make(http.Header)
+  header.Add("accept", "application/json")
+	header.Add("Content-Type", "application/json")
 	if c.Debug {
 		log.Println("----")
-		log.Printf("SearchWithTag: %s %s", searchEndpoint, body)
+		log.Printf("SearchWithTag: %s %s %v", searchEndpoint, body, header)
 	}
 
-	resp, err := c.post(searchEndpoint, bytes.NewReader(body))
+	resp, err := c.post(searchEndpoint, bytes.NewReader(body), header)
 	if err != nil {
 		if c.Debug {
 			log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
@@ -176,4 +226,23 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	}
 
 	return c.parseSearchResponse(resp)
+}
+
+func (c *IClient) GenerateSignedProxyUrl(assetID, proxyID string) (string, error) {
+	header := make(http.Header)
+	header.Add("asset_id", assetID)
+	header.Add("proxy_id", proxyID)
+	proxyEndpoint := fmt.Sprintf(proxyEndpointTemplate, assetID, proxyID)
+	if c.Debug {
+		log.Println("----")
+		log.Printf("GenerateSignedProxyUrl: %s %s %v", proxyEndpoint, nil, header)
+	}
+	resp, err := c.get(proxyEndpoint, nil, header)
+	if err != nil {
+		if c.Debug {
+			log.Printf("IClient.get(%s, %v) returned an error: %v\n", proxyEndpoint, nil, err)
+		}
+		return "", err
+	}
+	return c.parseProxyUrlResponse(resp)
 }
