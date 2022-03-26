@@ -1,3 +1,3 @@
-module main
+module iconik
 
 go 1.16
