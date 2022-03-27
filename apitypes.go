@@ -36,6 +36,7 @@ type IconikProxy struct {
 }
 
 type IconikFile struct {
+	Id   string `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -44,7 +45,7 @@ type IconikFile struct {
 type ProxyGetUrlSchema struct {
 }
 
-type ProxyGetUrlResponse struct {
+type GetUrlResponse struct {
 	URL string `json:"url"`
 }
 

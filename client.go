@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	iconikHost            = "https://app.iconik.io/API/"
+	IconikHost            = "https://app.iconik.io/API/"
 	searchEndpoint        = "search/v1/search/"
 	proxyEndpointTemplate = "files/v1/assets/%s/proxies/%s/download_url/"
+	fileEndpointTemplate  = "files/v1/assets/%s/files/%s/download_url/"
 )
 
 // Credentials are the identification required by the Iconik API
@@ -47,11 +48,11 @@ type IClient struct {
 // NewIClient creates a new Client for accessing the Iconik API.
 func NewIClient(creds Credentials, host string) (*IClient, error) {
 	if host == "" {
-		host = iconikHost
+		host = IconikHost
 	}
 	c := &IClient{
 		Credentials: creds,
-		host:        iconikHost,
+		host:        IconikHost,
 	}
 
 	return c, nil
@@ -143,8 +144,8 @@ func (c *IClient) parseSearchResponse(resp *http.Response) (*SearchResponse, err
 	return &response, err
 }
 
-func (c *IClient) parseProxyUrlResponse(resp *http.Response) (string, error) {
-	response := ProxyGetUrlResponse{}
+func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
+	response := GetUrlResponse{}
 	defer resp.Body.Close()
 
 	// Read response body
@@ -210,7 +211,7 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 		return &SearchResponse{}, err
 	}
 	header := make(http.Header)
-  header.Add("accept", "application/json")
+	header.Add("accept", "application/json")
 	header.Add("Content-Type", "application/json")
 	if c.Debug {
 		log.Println("----")
@@ -244,5 +245,25 @@ func (c *IClient) GenerateSignedProxyUrl(assetID, proxyID string) (string, error
 		}
 		return "", err
 	}
-	return c.parseProxyUrlResponse(resp)
+	return c.parseUrlResponse(resp)
+}
+
+func (c *IClient) GenerateSignedFileUrl(assetID, fileID string) (string, error) {
+	header := make(http.Header)
+	header.Add("asset_id", assetID)
+	header.Add("file_id", fileID)
+	fileEndpoint := fmt.Sprintf(fileEndpointTemplate, assetID, fileID)
+	if c.Debug {
+		log.Println("----")
+		log.Printf("GenerateSignedFileUrl: %s %s %v", fileEndpoint, nil, header)
+	}
+	resp, err := c.get(fileEndpoint, nil, header)
+	if err != nil {
+		if c.Debug {
+			log.Printf("IClient.get(%s, %v) returned an error: %v\n", fileEndpoint, nil, err)
+		}
+		return "", err
+	}
+
+	return c.parseUrlResponse(resp)
 }
