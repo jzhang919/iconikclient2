@@ -14,8 +14,8 @@ import (
 const (
 	IconikHost            = "https://app.iconik.io/API/"
 	searchEndpoint        = "search/v1/search/"
-	proxyEndpointTemplate = "files/v1/assets/%s/proxies/%s/download_url/"
-	fileEndpointTemplate  = "files/v1/assets/%s/files/%s/download_url/"
+	proxyEndpointTemplate = "files/v1/assets/%s/proxies"
+	fileEndpointTemplate  = "files/v1/assets/%s/files?generate_signed_url=true"
 )
 
 // Credentials are the identification required by the Iconik API
@@ -145,7 +145,7 @@ func (c *IClient) parseSearchResponse(resp *http.Response) (*SearchResponse, err
 }
 
 func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
-	response := GetUrlResponse{}
+	response := GetResponse{}
 	defer resp.Body.Close()
 
 	// Read response body
@@ -173,11 +173,17 @@ func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
 		}
 		return "", iErr
 	}
+
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return "", err
 	}
-	return response.URL, nil
+
+	if len(response.Objects) != 1 {
+		return "", fmt.Errorf("unexpected number of objects in response: %d", len(response.Objects))
+	}
+
+	return response.Objects[0].URL, nil
 }
 
 func makeSearchBody(tag string) SearchCriteriaSchema {
@@ -229,11 +235,10 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	return c.parseSearchResponse(resp)
 }
 
-func (c *IClient) GenerateSignedProxyUrl(assetID, proxyID string) (string, error) {
+func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {
 	header := make(http.Header)
 	header.Add("asset_id", assetID)
-	header.Add("proxy_id", proxyID)
-	proxyEndpoint := fmt.Sprintf(proxyEndpointTemplate, assetID, proxyID)
+	proxyEndpoint := fmt.Sprintf(proxyEndpointTemplate, assetID)
 	if c.Debug {
 		log.Println("----")
 		log.Printf("GenerateSignedProxyUrl: %s %s %v", proxyEndpoint, nil, header)
@@ -245,14 +250,14 @@ func (c *IClient) GenerateSignedProxyUrl(assetID, proxyID string) (string, error
 		}
 		return "", err
 	}
+
 	return c.parseUrlResponse(resp)
 }
 
-func (c *IClient) GenerateSignedFileUrl(assetID, fileID string) (string, error) {
+func (c *IClient) GenerateSignedFileUrl(assetID string) (string, error) {
 	header := make(http.Header)
 	header.Add("asset_id", assetID)
-	header.Add("file_id", fileID)
-	fileEndpoint := fmt.Sprintf(fileEndpointTemplate, assetID, fileID)
+	fileEndpoint := fmt.Sprintf(fileEndpointTemplate, assetID)
 	if c.Debug {
 		log.Println("----")
 		log.Printf("GenerateSignedFileUrl: %s %s %v", fileEndpoint, nil, header)
