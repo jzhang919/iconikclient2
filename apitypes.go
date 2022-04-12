@@ -45,8 +45,12 @@ type IconikFile struct {
 type ProxyGetUrlSchema struct {
 }
 
-type GetUrlResponse struct {
+type Object struct {
 	URL string `json:"url"`
+}
+
+type GetResponse struct {
+	Objects []Object `json:"objects"`
 }
 
 // IError encapsulates an error message returned by the Iconik API.
