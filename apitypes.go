@@ -46,7 +46,8 @@ type ProxyGetUrlSchema struct {
 }
 
 type Object struct {
-	URL string `json:"url"`
+	URL  string `json:"url"`
+	Type string `json:"type"`
 }
 
 type GetResponse struct {
