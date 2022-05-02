@@ -9,13 +9,15 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 )
 
 const (
-	IconikHost            = "https://app.iconik.io/API/"
-	searchEndpoint        = "search/v1/search/"
-	proxyEndpointTemplate = "files/v1/assets/%s/proxies"
-	fileEndpointTemplate  = "files/v1/assets/%s/files?generate_signed_url=true"
+	IconikHost               = "https://app.iconik.io/API/"
+	searchEndpoint           = "search/v1/search/"
+	proxyEndpointTemplate    = "files/v1/assets/%s/proxies"
+	fileEndpointTemplate     = "files/v1/assets/%s/files?generate_signed_url=true"
+	keyframeEndpointTemplate = "files/v1/assets/%s/keyframes?generate_signed_url=true"
 )
 
 // Credentials are the identification required by the Iconik API
@@ -49,10 +51,12 @@ type IClient struct {
 func NewIClient(creds Credentials, host string) (*IClient, error) {
 	if host == "" {
 		host = IconikHost
+	} else if !strings.HasSuffix(host, "/") {
+		host = host + "/"
 	}
 	c := &IClient{
 		Credentials: creds,
-		host:        IconikHost,
+		host:        host,
 	}
 
 	return c, nil
@@ -74,6 +78,9 @@ func (c *IClient) newRequest(method, apiPath string, body io.Reader, headerSetti
 	}
 
 	req, err := http.NewRequest(method, path, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = header
 
 	if err != nil {
@@ -241,12 +248,12 @@ func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {
 	proxyEndpoint := fmt.Sprintf(proxyEndpointTemplate, assetID)
 	if c.Debug {
 		log.Println("----")
-		log.Printf("GenerateSignedProxyUrl: %s %s %v", proxyEndpoint, nil, header)
+		log.Printf("GenerateSignedProxyUrl: %s %v", proxyEndpoint, header)
 	}
 	resp, err := c.get(proxyEndpoint, nil, header)
 	if err != nil {
 		if c.Debug {
-			log.Printf("IClient.get(%s, %v) returned an error: %v\n", proxyEndpoint, nil, err)
+			log.Printf("IClient.get(%s) returned an error: %v\n", proxyEndpoint, err)
 		}
 		return "", err
 	}
@@ -260,15 +267,74 @@ func (c *IClient) GenerateSignedFileUrl(assetID string) (string, error) {
 	fileEndpoint := fmt.Sprintf(fileEndpointTemplate, assetID)
 	if c.Debug {
 		log.Println("----")
-		log.Printf("GenerateSignedFileUrl: %s %s %v", fileEndpoint, nil, header)
+		log.Printf("GenerateSignedFileUrl: %s %v", fileEndpoint, header)
 	}
 	resp, err := c.get(fileEndpoint, nil, header)
 	if err != nil {
 		if c.Debug {
-			log.Printf("IClient.get(%s, %v) returned an error: %v\n", fileEndpoint, nil, err)
+			log.Printf("IClient.get(%s) returned an error: %v\n", fileEndpoint, err)
 		}
 		return "", err
 	}
 
 	return c.parseUrlResponse(resp)
+}
+
+func (c *IClient) GetKeyframeUrl(assetID string) (string, error) {
+	header := make(http.Header)
+	header.Add("asset_id", assetID)
+	keyframeEndpoint := fmt.Sprintf(keyframeEndpointTemplate, assetID)
+	if c.Debug {
+		log.Println("----")
+		log.Printf("GetKeyframeUrl: %s %v", keyframeEndpoint, header)
+	}
+	resp, err := c.get(keyframeEndpoint, nil, header)
+	if err != nil {
+		if c.Debug {
+			log.Printf("IClient.get(%s) returned an error: %v\n", keyframeEndpoint, err)
+		}
+		return "", err
+	}
+
+	response := GetResponse{}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if c.Debug {
+		log.Printf("Response: %s", body)
+	}
+
+	// Check response code
+	switch resp.StatusCode {
+	case 200: // Response is OK
+	default:
+		iErr := &IError{}
+		if err := json.Unmarshal(body, iErr); err != nil {
+			if c.Debug {
+				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
+			}
+			return "", &IError{
+				Errors: []string{"UNKNOWN; error message not parsable"},
+			}
+		}
+		return "", iErr
+	}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return "", err
+	}
+
+	for _, v := range response.Objects {
+		if v.Type == "KEYFRAME" {
+			return v.URL, nil
+		}
+	}
+
+	return "", &IError{Errors: []string{"didn't find KEYFRAME"}}
 }
