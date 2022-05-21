@@ -36,6 +36,21 @@ You can then create a main.go that constructs an Iconik Client struct and call r
 
 **DO NOT COMMIT YOUR MAIN.GO CONTAINING THE TOKEN/APP-ID key TO THE REPO**.
 
-# Aim for simplicity
+### Aim for simplicity
 
 One goal with this stack is simplicity. Generally we avoid introducing new dependencies that will increase the learning curve for development.
+
+
+### Deploying to Production
+
+**DO NOT PUSH DIRECTLY TO MASTER**
+
+Rather, create a seperate branch, do your commits on that branch, and then submit a pull request to master once your feature is complete.
+
+
+```bash
+git branch dev-*insert_name*
+... <git commits>
+git merge master
+git push origin production
+```
