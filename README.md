@@ -45,12 +45,4 @@ One goal with this stack is simplicity. Generally we avoid introducing new depen
 
 **DO NOT PUSH DIRECTLY TO MASTER**
 
-Rather, create a seperate branch, do your commits on that branch, and then submit a pull request to master once your feature is complete.
-
-
-```bash
-git branch dev-*insert_name*
-... <git commits>
-git merge master
-git push origin production
-```
+Rather, create a seperate branch, do your commits on that branch, and then submit a [pull request](https://github.com/jzhang919/iconikclient2/pulls) to master once your feature is complete.
