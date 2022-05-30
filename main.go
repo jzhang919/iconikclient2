@@ -12,10 +12,10 @@ type AssetProxy struct {
 
 func main() {
 
-	appID := flag.String("appid", "Please enter your App Id:", "Application Identification")
+	appID := flag.String("appid", "", "Please enter your App Id: ")
 	flag.Parse()
 
-	tokenValue := flag.String("tokenValue", "Please enter your Token: ", "Token")
+	tokenValue := flag.String("tokenValue", "", "Please enter your Token: ")
 	flag.Parse()
 
 	creds := Credentials{
