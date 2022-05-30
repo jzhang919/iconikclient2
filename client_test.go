@@ -1,4 +1,4 @@
-package iconik
+package main
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ func TestSendRequest(t *testing.T) {
 	}
 	client, _ := NewIClient(creds, server.URL)
 
-	req := makeSearchBody("testTag")
+	req := makeSearchBody("testTitle", "testTag")
 	resp, err := client.SearchWithTag("Teaching")
 	if err != nil {
 		t.Fatalf("ApiRequest(%s, %v) failed: %v", searchEndpoint, req, err)
@@ -44,11 +44,12 @@ func TestIClient_GenerateSignedProxyUrl(t *testing.T) {
 	expected := "https://test.com/url"
 	returnStruct := GetResponse{Objects: []Object{{URL: expected}}}
 	assetId := "testAssetId"
+	proxyId := "testProxyId"
 
 	//Start a local HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Test request parameters
-		if strings.TrimPrefix(req.URL.String(), "/") == fmt.Sprintf(proxyEndpointTemplate, assetId) {
+		if strings.TrimPrefix(req.URL.String(), "/") == fmt.Sprintf(proxyEndpointTemplate, assetId, proxyId) {
 			payload, _ := json.Marshal(returnStruct)
 			rw.Write(payload)
 		}
@@ -62,7 +63,7 @@ func TestIClient_GenerateSignedProxyUrl(t *testing.T) {
 		Token: "testToken",
 	}
 	client, _ := NewIClient(creds, server.URL)
-	url, err := client.GenerateSignedProxyUrl(assetId)
+	url, err := client.GenerateSignedProxyUrl(assetId, proxyId)
 	if err != nil {
 		t.Fatalf("GenerateSignedProxyUrl(%s got %v; wanted no error)", assetId, err)
 	}

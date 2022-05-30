@@ -1,5 +1,5 @@
 // Package iconik API for Golang
-package iconik
+package main
 
 import (
 	"bytes"
@@ -193,7 +193,10 @@ func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
 	return response.Objects[0].URL, nil
 }
 
-func makeSearchBody(tag string) SearchCriteriaSchema {
+func makeSearchBody(titleName string, tag string) SearchCriteriaSchema {
+	title := SearchTitle{
+		Name: titleName,
+	}
 	filter := SearchFilter{
 		Operator: "AND",
 		Terms: []FilterTerm{{
@@ -204,6 +207,7 @@ func makeSearchBody(tag string) SearchCriteriaSchema {
 	schema := SearchCriteriaSchema{
 		DocTypes: []string{"assets"},
 		Filter:   filter,
+		Title:	  title,
 	}
 	return schema
 }
@@ -218,7 +222,7 @@ func makeProxyUrlBody() ProxyGetUrlSchema {
 // tag: The metadata tag on Iconik, eg. "TeachingVideos," that you want to find matching assets for.
 // response: The response object to be filled out.
 func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
-	request := makeSearchBody(tag)
+	request := makeSearchBody("", tag)
 	body, err := json.Marshal(request)
 	if err != nil {
 		return &SearchResponse{}, err
@@ -240,6 +244,53 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	}
 
 	return c.parseSearchResponse(resp)
+}
+
+// New Function Search With Title:
+func(c* IClient) SearchWithTitle(title string) (*SearchResponse, error) {
+	request := makeSearchBody(title, "")
+	body, err := json.Marshal(request)
+	if err != nil {
+		log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
+	}
+
+	header := make(http.Header)
+	header.Add("accept", "application/json")
+	header.Add("Content-Type", "application/json")
+	if c.Debug {
+		log.Println("----")
+		log.Printf("SearchWithTag: %s %s %v", searchEndpoint, body, header)
+	}
+	// log.Printf("SearchWithTag: %s %s %v", searchEndpoint, body, header)
+	resp, err := c.post(searchEndpoint, bytes.NewReader(body), header)
+
+	if err != nil {
+		if c.Debug {
+			log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
+		}
+		return &SearchResponse{}, err
+	}
+
+	return c.parseSearchResponse(resp);
+	
+}
+
+// New Function To upload videos:
+func(c *IClient) UploadAsset(assetID string) {
+	header := make(http.Header)
+	header.Add("asset_id", assetID)
+
+	//c.post()
+
+	// newURL, err := c.GenerateSignedProxyUrl(assetID, proxyID)
+	// if err != nil {
+	// 	log.Printf("Error: %v", err)
+	// }
+	// log.Printf("%v", newURL)
+}
+
+func(c *IClient) UploadFile() {
+
 }
 
 func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {
