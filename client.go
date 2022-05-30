@@ -57,6 +57,7 @@ func NewIClient(creds Credentials, host string) (*IClient, error) {
 	c := &IClient{
 		Credentials: creds,
 		host:        host,
+		// Debug:		 true,
 	}
 
 	return c, nil

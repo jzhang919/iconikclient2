@@ -11,16 +11,23 @@ type AssetProxy struct {
 }
 
 func main() {
-	fmt.Print("Enter your App ID: ")
-	var app_id string;
-	fmt.Scanln(&app_id)
+	// fmt.Print("Enter your App ID: ")
+	// var app_id string;
+	// fmt.Scanln(&app_id)
 
-	fmt.Print("Enter your access token: ")
-	var token string;
-	fmt.Scanln(&token)
+	// fmt.Print("Enter your access token: ")
+	// var token string;
+	// fmt.Scanln(&token)
 
-	appIDFlag := flag.String("AppID", app_id, "ID of the user");
-	tokenFlag := flag.String("Token", token, "Token of the user");
+	appIDFlag := flag.String("AppID", "", "Enter your App ID: ");
+	tokenFlag := flag.String("Token", "", "Enter your access token: ");
+	// debugFlag := flag.Bool("DebugFlag", false, "Debugging")
+
+	flag.Parse()
+
+	// fmt.Printf("App ID Value: %s", *appIDFlag)
+	// fmt.Printf("Token Value: %s", *tokenFlag)
+
 
 	creds := Credentials{
 		AppID: *appIDFlag,
