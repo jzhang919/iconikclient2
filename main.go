@@ -39,7 +39,7 @@ func main() {
 		}
 	}
 	for _, id := range ids {
-		url, err := client.GenerateSignedProxyUrl(id.assetID, id.proxyID)
+		url, err := client.GenerateSignedProxyUrl(id.assetID)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}

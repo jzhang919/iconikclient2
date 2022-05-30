@@ -44,12 +44,11 @@ func TestIClient_GenerateSignedProxyUrl(t *testing.T) {
 	expected := "https://test.com/url"
 	returnStruct := GetResponse{Objects: []Object{{URL: expected}}}
 	assetId := "testAssetId"
-	proxyId := "testProxyId"
 
 	//Start a local HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Test request parameters
-		if strings.TrimPrefix(req.URL.String(), "/") == fmt.Sprintf(proxyEndpointTemplate, assetId, proxyId) {
+		if strings.TrimPrefix(req.URL.String(), "/") == fmt.Sprintf(proxyEndpointTemplate, assetId) {
 			payload, _ := json.Marshal(returnStruct)
 			rw.Write(payload)
 		}
@@ -63,7 +62,7 @@ func TestIClient_GenerateSignedProxyUrl(t *testing.T) {
 		Token: "testToken",
 	}
 	client, _ := NewIClient(creds, server.URL)
-	url, err := client.GenerateSignedProxyUrl(assetId, proxyId)
+	url, err := client.GenerateSignedProxyUrl(assetId)
 	if err != nil {
 		t.Fatalf("GenerateSignedProxyUrl(%s got %v; wanted no error)", assetId, err)
 	}
