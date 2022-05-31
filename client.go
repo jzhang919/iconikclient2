@@ -48,7 +48,7 @@ type IClient struct {
 }
 
 // NewIClient creates a new Client for accessing the Iconik API.
-func NewIClient(creds Credentials, host string) (*IClient, error) {
+func NewIClient(creds Credentials, host string, debug bool) (*IClient, error) {
 	if host == "" {
 		host = IconikHost
 	} else if !strings.HasSuffix(host, "/") {
@@ -57,7 +57,7 @@ func NewIClient(creds Credentials, host string) (*IClient, error) {
 	c := &IClient{
 		Credentials: creds,
 		host:        host,
-		// Debug:		 true,
+		Debug:		 debug,
 	}
 
 	return c, nil
@@ -247,52 +247,7 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	return c.parseSearchResponse(resp)
 }
 
-// New Function Search With Title:
-func(c* IClient) SearchWithTitle(title string) (*SearchResponse, error) {
-	request := makeSearchBody(title, "")
-	body, err := json.Marshal(request)
-	if err != nil {
-		log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
-	}
 
-	header := make(http.Header)
-	header.Add("accept", "application/json")
-	header.Add("Content-Type", "application/json")
-	if c.Debug {
-		log.Println("----")
-		log.Printf("SearchWithTag: %s %s %v", searchEndpoint, body, header)
-	}
-	// log.Printf("SearchWithTag: %s %s %v", searchEndpoint, body, header)
-	resp, err := c.post(searchEndpoint, bytes.NewReader(body), header)
-
-	if err != nil {
-		if c.Debug {
-			log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
-		}
-		return &SearchResponse{}, err
-	}
-
-	return c.parseSearchResponse(resp);
-	
-}
-
-// New Function To upload videos:
-func(c *IClient) UploadAsset(assetID string) {
-	header := make(http.Header)
-	header.Add("asset_id", assetID)
-
-	//c.post()
-
-	// newURL, err := c.GenerateSignedProxyUrl(assetID, proxyID)
-	// if err != nil {
-	// 	log.Printf("Error: %v", err)
-	// }
-	// log.Printf("%v", newURL)
-}
-
-func(c *IClient) UploadFile() {
-
-}
 
 func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {
 	header := make(http.Header)
