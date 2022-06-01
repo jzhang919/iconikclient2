@@ -13,17 +13,15 @@ type AssetProxy struct {
 func main() {
 	appIDFlag := flag.String("AppID", "", "Enter your App ID: ");
 	tokenFlag := flag.String("Token", "", "Enter your access token: ");
-	debugFlag := flag.Bool("DebugFlag", false, "Debugging")
-
+	debugFlag := flag.Bool("Debug", false, "Debugging")
 	flag.Parse()
-
 
 	creds := Credentials{
 		AppID: *appIDFlag,
 		Token: *tokenFlag,
 	}
 	client, _ := NewIClient(creds, "", *debugFlag)
-	resp, _ := client.SearchWithTag("AYMLeadershipCamp")
+	resp, _ := client.SearchWithTitleAndTag("aym_onboarding_intro", "")
 
 	ids := []AssetProxy{}
 	for _, objects := range resp.Objects {

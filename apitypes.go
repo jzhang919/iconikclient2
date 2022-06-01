@@ -9,11 +9,6 @@ import (
 type SearchCriteriaSchema struct {
 	DocTypes []string     `json:"doc_types"`
 	Filter   SearchFilter `json:"filter"`
-	Title	 SearchTitle  `json:"title"`
-}
-
-type SearchTitle struct {
-	Name string `json:"name"`
 }
 
 type SearchFilter struct {
