@@ -1,4 +1,4 @@
-package iconik
+package main
 
 import (
 	"fmt"

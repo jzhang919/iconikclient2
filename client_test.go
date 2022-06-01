@@ -1,4 +1,4 @@
-package iconik
+package main
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 
 func TestSendRequest(t *testing.T) {
 	expected := "abc"
-	returnStruct := SearchResponse{Objects: []IconikObject{{Id: expected, Files: []IconikFile{IconikFile{Name: "test"}}}}}
+	returnStruct := SearchResponse{Objects: []IconikObject{{Id: expected, Files: []IconikFile{{Name: "test"}}}}}
 
 	//Start a local HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -28,9 +28,9 @@ func TestSendRequest(t *testing.T) {
 		AppID: "testAppID",
 		Token: "testToken",
 	}
-	client, _ := NewIClient(creds, server.URL)
+	client, _ := NewIClient(creds, server.URL, false)
 
-	req := makeSearchBody("testTag")
+	req := makeSearchBody("testTitle", "testTag")
 	resp, err := client.SearchWithTag("Teaching")
 	if err != nil {
 		t.Fatalf("ApiRequest(%s, %v) failed: %v", searchEndpoint, req, err)
@@ -61,7 +61,7 @@ func TestIClient_GenerateSignedProxyUrl(t *testing.T) {
 		AppID: "testAppID",
 		Token: "testToken",
 	}
-	client, _ := NewIClient(creds, server.URL)
+	client, _ := NewIClient(creds, server.URL, false)
 	url, err := client.GenerateSignedProxyUrl(assetId)
 	if err != nil {
 		t.Fatalf("GenerateSignedProxyUrl(%s got %v; wanted no error)", assetId, err)
@@ -92,7 +92,7 @@ func TestIClient_GenerateSignedFileUrl(t *testing.T) {
 		AppID: "testAppID",
 		Token: "testToken",
 	}
-	client, _ := NewIClient(creds, server.URL)
+	client, _ := NewIClient(creds, server.URL, false)
 	url, err := client.GenerateSignedFileUrl(assetId)
 	if err != nil {
 		t.Fatalf("GenerateSignedFileUrl(%s got %v; wanted no error)", assetId, err)
@@ -123,7 +123,7 @@ func TestIClient_GenerateKeyframeUrl(t *testing.T) {
 		AppID: "testAppID",
 		Token: "testToken",
 	}
-	client, _ := NewIClient(creds, server.URL)
+	client, _ := NewIClient(creds, server.URL, false)
 	url, err := client.GetKeyframeUrl(assetId)
 	if err != nil {
 		t.Fatalf("GetKeyframeUrl(%s got %v; wanted no error)", assetId, err)

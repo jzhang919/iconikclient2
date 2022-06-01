@@ -1,5 +1,5 @@
 // Package iconik API for Golang
-package iconik
+package main
 
 import (
 	"bytes"
@@ -48,7 +48,7 @@ type IClient struct {
 }
 
 // NewIClient creates a new Client for accessing the Iconik API.
-func NewIClient(creds Credentials, host string) (*IClient, error) {
+func NewIClient(creds Credentials, host string, debug bool) (*IClient, error) {
 	if host == "" {
 		host = IconikHost
 	} else if !strings.HasSuffix(host, "/") {
@@ -57,6 +57,7 @@ func NewIClient(creds Credentials, host string) (*IClient, error) {
 	c := &IClient{
 		Credentials: creds,
 		host:        host,
+		Debug:		 debug,
 	}
 
 	return c, nil
@@ -193,13 +194,18 @@ func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
 	return response.Objects[0].URL, nil
 }
 
-func makeSearchBody(tag string) SearchCriteriaSchema {
+func makeSearchBody(title string, tag string) SearchCriteriaSchema {
 	filter := SearchFilter{
-		Operator: "AND",
+		Operator: "OR",
 		Terms: []FilterTerm{{
 			Name:  "metadata._gcvi_tags",
 			Value: tag,
-		}},
+		},
+		{
+			Name: "title",
+			Value: title,
+		},
+	},
 	}
 	schema := SearchCriteriaSchema{
 		DocTypes: []string{"assets"},
@@ -218,7 +224,12 @@ func makeProxyUrlBody() ProxyGetUrlSchema {
 // tag: The metadata tag on Iconik, eg. "TeachingVideos," that you want to find matching assets for.
 // response: The response object to be filled out.
 func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
-	request := makeSearchBody(tag)
+	return c.SearchWithTitleAndTag("", tag)
+}
+
+// New Function Search With Title:
+func(c* IClient) SearchWithTitleAndTag(title string, tag string) (*SearchResponse, error) {
+	request := makeSearchBody(title, tag)
 	body, err := json.Marshal(request)
 	if err != nil {
 		return &SearchResponse{}, err
@@ -228,9 +239,8 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 	header.Add("Content-Type", "application/json")
 	if c.Debug {
 		log.Println("----")
-		log.Printf("SearchWithTag: %s %s %v", searchEndpoint, body, header)
+		log.Printf("SearchWithTitleAndTag: %s %s %v", searchEndpoint, body, header)
 	}
-
 	resp, err := c.post(searchEndpoint, bytes.NewReader(body), header)
 	if err != nil {
 		if c.Debug {
@@ -239,7 +249,7 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 		return &SearchResponse{}, err
 	}
 
-	return c.parseSearchResponse(resp)
+	return c.parseSearchResponse(resp);
 }
 
 func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {
