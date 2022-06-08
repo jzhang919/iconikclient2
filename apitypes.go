@@ -6,6 +6,40 @@ import (
 
 // JSON Object structs.
 
+type AssetCreateSchema struct {
+	Title 	string `json:"title"`
+}
+
+type FormatSchema struct {
+	AssetID 	string `json:"asset_id"`
+	Id			string `json:"id"`
+	Name		string `json:"name"`
+}
+
+type ComponentSchema struct {
+	Id		string `json:"id"`
+	Name	string `json:"name"`
+	Type	string `json:"type"`
+}
+
+type FileSetSchema struct {
+	Id				string	  `json:"id"`
+	BaseDir			string	  `json:"base_dir"`
+	ComponentIDs	[]string  `json:"component_ids"`
+	FormatID		string	  `json:"format_id"`
+	Name			string	  `json:"name"`
+}
+
+type FileCreateSchema struct {
+	AssetID			string 	`json:"asset_id"`
+	FileSetID		string 	`json:"file_set_id"`
+	DirectoryPath 	string 	`json:"directory_path"`
+	Name			string  `json:"name"`
+	OriginalName	string 	`json:"original_name"`
+	Type			string 	`json:"type"`
+	Size			int64	`json:"size"`
+}
+
 type SearchCriteriaSchema struct {
 	DocTypes []string     `json:"doc_types"`
 	Filter   SearchFilter `json:"filter"`
@@ -19,6 +53,10 @@ type SearchFilter struct {
 type FilterTerm struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+type AssetSchema struct {
+	Id 		string 	 `json:"id"`
 }
 
 type SearchResponse struct {
@@ -46,8 +84,8 @@ type ProxyGetUrlSchema struct {
 }
 
 type Object struct {
-	URL  string `json:"url"`
-	Type string `json:"type"`
+	URL  	 string `json:"url"`
+	Type 	 string `json:"type"`
 }
 
 type GetResponse struct {
