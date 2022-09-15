@@ -187,11 +187,17 @@ func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
 		return "", err
 	}
 
-	if len(response.Objects) != 1 {
-		return "", fmt.Errorf("unexpected number of objects in response: %d", len(response.Objects))
+	retVal := ""
+	for _, v := range response.Objects {
+		if v.URL != "" {
+			if retVal != "" {
+				return "", fmt.Errorf("more than one URL in response")
+			}
+			retVal = v.URL
+		}
 	}
 
-	return response.Objects[0].URL, nil
+	return retVal, nil
 }
 
 func makeSearchBody(title string, tag string) SearchCriteriaSchema {
