@@ -1,5 +1,5 @@
 // Package iconik API for Golang
-package main
+package iconik
 
 import (
 	"bytes"
@@ -57,7 +57,7 @@ func NewIClient(creds Credentials, host string, debug bool) (*IClient, error) {
 	c := &IClient{
 		Credentials: creds,
 		host:        host,
-		Debug:		 debug,
+		Debug:       debug,
 	}
 
 	return c, nil
@@ -207,11 +207,11 @@ func makeSearchBody(title string, tag string) SearchCriteriaSchema {
 			Name:  "metadata._gcvi_tags",
 			Value: tag,
 		},
-		{
-			Name: "title",
-			Value: title,
+			{
+				Name:  "title",
+				Value: title,
+			},
 		},
-	},
 	}
 	schema := SearchCriteriaSchema{
 		DocTypes: []string{"assets"},
@@ -234,7 +234,7 @@ func (c *IClient) SearchWithTag(tag string) (*SearchResponse, error) {
 }
 
 // New Function Search With Title:
-func(c* IClient) SearchWithTitleAndTag(title string, tag string) (*SearchResponse, error) {
+func (c *IClient) SearchWithTitleAndTag(title string, tag string) (*SearchResponse, error) {
 	request := makeSearchBody(title, tag)
 	body, err := json.Marshal(request)
 	if err != nil {
@@ -255,7 +255,7 @@ func(c* IClient) SearchWithTitleAndTag(title string, tag string) (*SearchRespons
 		return &SearchResponse{}, err
 	}
 
-	return c.parseSearchResponse(resp);
+	return c.parseSearchResponse(resp)
 }
 
 func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {

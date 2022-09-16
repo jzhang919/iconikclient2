@@ -1,8 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
+
+	iconik "github.com/jzhang919/iconikclient2"
 )
 
 type AssetProxy struct {
@@ -11,17 +13,19 @@ type AssetProxy struct {
 }
 
 func main() {
-	appIDFlag := flag.String("AppID", "", "Enter your App ID: ");
-	tokenFlag := flag.String("Token", "", "Enter your access token: ");
+	appIDFlag := flag.String("AppID", "", "Enter your App ID: ")
+	tokenFlag := flag.String("Token", "", "Enter your access token: ")
 	debugFlag := flag.Bool("Debug", false, "Debugging")
+	searchTitle := flag.String("title", "", "Title you are searching for")
+	searchTag := flag.String("", "", "Tags you are searching for")
 	flag.Parse()
 
-	creds := Credentials{
+	creds := iconik.Credentials{
 		AppID: *appIDFlag,
 		Token: *tokenFlag,
 	}
-	client, _ := NewIClient(creds, "", *debugFlag)
-	resp, _ := client.SearchWithTitleAndTag("aym_onboarding_intro", "")
+	client, _ := iconik.NewIClient(creds, "", *debugFlag)
+	resp, _ := client.SearchWithTitleAndTag(*searchTitle, *searchTag)
 
 	ids := []AssetProxy{}
 	for _, objects := range resp.Objects {
