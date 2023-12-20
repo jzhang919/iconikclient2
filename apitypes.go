@@ -26,9 +26,18 @@ type SearchResponse struct {
 }
 
 type IconikObject struct {
-	Id      string        `json:"id"`
-	Files   []IconikFile  `json:"files"`
-	Proxies []IconikProxy `json:"proxies"`
+	Id            string        `json:"id"`
+	Title         string        `json:"title"`
+	Files         []IconikFile  `json:"files"`
+	Proxies       []IconikProxy `json:"proxies"`
+	ObjectType    string        `json:"object_type"`
+	InCollections []string      `json:"in_collections"` // or parents?
+	Status        string        `json:"status"`
+}
+
+type CollectionResult struct {
+	Path         string `json:"path"`
+	CollectionID string `json:"collection_id"`
 }
 
 type IconikProxy struct {
@@ -52,6 +61,33 @@ type Object struct {
 
 type GetResponse struct {
 	Objects []Object `json:"objects"`
+}
+
+type AuthToken struct {
+	AuthorizationToken string `json:"authorizationToken"`
+}
+
+type FileReqResponse struct {
+	Id                string    `json:"id"`
+	UploadURL         string    `json:"upload_url"`
+	UploadCredentials AuthToken `json:"upload_credentials"`
+	UploadFilename    string    `json:"upload_filename"`
+}
+
+type PostAssetResponse struct {
+	Id            string `json:"id"`
+	CreatedByUser string `json:"created_by_user"`
+}
+
+type NewAssetUpload struct {
+	AssetID         string `json:"asset_id"`
+	UploadURL       string `json:"upload_url"`
+	UploadAuthToken string `json:"upload_auth_token"`
+	UploadFilename  string `json:"upload_filename"`
+	MimeType        string `json:"mime_type"`
+	JobID           string `json:"job_id"`
+	FileReqID       string `json:"file_req_id"`
+	FileSize        int64  `json:"file_size"`
 }
 
 // IError encapsulates an error message returned by the Iconik API.
