@@ -45,31 +45,36 @@ func main() {
 			log.Printf("(unused) collectionID entry: %v", v)
 		}
 	}
+	// open file and get its size, creation date and mimeType
+	file, err := os.Open(*fileName)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer file.Close()
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Fatalf("error getting file info: %v", err)
+	}
+	fileSize := fileInfo.Size()
+	// get it's date last modified
+	fileDateCreated := fileInfo.ModTime()
+	uploadBody, err := io.ReadAll(file)
+	if err != nil {
+		log.Fatalf("error reading file: %v", err)
+	}
+	// get mimetype
+	mimeType := http.DetectContentType(uploadBody)
 
-	// ask user which collection they want to be part of, then get filename and title as well as basedir and subdir
-	NAU, err := client.MakeNewAsset(collectionIDs[0].CollectionID, *fileName, *title, *storagePath)
+	// create the stubs for the upload
+	NAU, err := client.MakeNewAsset(collectionIDs[0].CollectionID, *fileName, *title, *storagePath, mimeType, fileSize, fileDateCreated)
 	if err != nil {
 		log.Fatalf("error making new asset: %v", err)
 	}
 
 	// upload file
-	file, err := os.Open(*fileName)
-	if err != nil {
-		log.Fatalf("can't open file: %v", err)
-	}
-	defer file.Close()
-
-	data := make([]byte, NAU.FileSize)
-	_, err = file.Read(data)
-	if err != nil {
-		log.Fatalf("unable to read file because %v", err)
-	}
-
-	// Prepare the request
-	uploadBody := bytes.NewBuffer(data)
 	uploadReq, err := http.NewRequest(http.MethodPost,
 		NAU.UploadURL,
-		uploadBody)
+		bytes.NewBuffer(uploadBody))
 	if err != nil {
 		log.Fatalf("can't make upload request: %v", err)
 	}
