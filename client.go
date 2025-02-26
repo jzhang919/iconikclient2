@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -804,7 +803,7 @@ func (c *IClient) PostStartOfJob(assetID, title string) (string, error) {
 // This ties together many steps needed to actually upload a file. Ultimately, it returns
 // a NewAssetUpload object that contains all the information needed to upload a file. Once
 // done, you can call FinishUpload to finish the upload.
-func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath string) (*NewAssetUpload, error) {
+func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath, mimeType string, fileSize int64, fileDateCreated time.Time) (*NewAssetUpload, error) {
 	// create the Asset
 	postAssetResponse, err := c.PostAssetID(collectionID, title)
 	if err != nil {
@@ -816,25 +815,6 @@ func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath string
 	if err != nil {
 		return nil, err
 	}
-
-	// open file and get its size, creation date and mimeType
-	file, err := os.Open(fileName)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-	fileSize := fileInfo.Size()
-	// get it's date created and date modified
-	fileDateCreated := fileInfo.ModTime().Format(time.RFC3339)
-	bytes, err := io.ReadAll(file)
-	if err != nil {
-		return nil, err
-	}
-	mimeType := http.DetectContentType(bytes)
 
 	// now make the formatID
 	formatID, err := c.MakeFormatID(postAssetResponse.CreatedByUser, postAssetResponse.Id, mimeType)
@@ -849,7 +829,7 @@ func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath string
 	}
 
 	// get upload URL
-	frResponse, err := c.GetUploadUrl(postAssetResponse.Id, title, storagePath, formatID, fileSetId, storageID, fileDateCreated, fileSize)
+	frResponse, err := c.GetUploadUrl(postAssetResponse.Id, title, storagePath, formatID, fileSetId, storageID, fileDateCreated.Format(time.RFC3339), fileSize)
 	if err != nil {
 		return nil, err
 	}

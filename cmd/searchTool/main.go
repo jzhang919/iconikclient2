@@ -25,14 +25,14 @@ func main() {
 		Token: *tokenFlag,
 	}
 	client, _ := iconik.NewIClient(creds, "", *debugFlag)
-	resp, _ := client.SearchWithTitleAndTag(*searchTitle, *searchTag)
+	resp, _ := client.SearchWithTitleAndTag(*searchTitle, *searchTag, false)
 
 	ids := []AssetProxy{}
-	for _, objects := range resp.Objects {
-		for _, proxy := range objects.Proxies {
-			ids = append(ids, AssetProxy{objects.Id, proxy.Id})
+	for _, object := range resp.Objects {
+		for _, proxy := range object.Proxies {
+			ids = append(ids, AssetProxy{object.Id, proxy.Id})
 		}
-		for _, file := range objects.Files {
+		for _, file := range object.Files {
 			fmt.Println(file.Name)
 		}
 	}
