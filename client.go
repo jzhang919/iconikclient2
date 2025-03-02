@@ -17,7 +17,8 @@ const (
 	searchEndpoint                    = "search/v1/search/"
 	collectionEndpointTemplate        = "assets/v1/collections/%s"
 	proxyEndpointTemplate             = "files/v1/assets/%s/proxies"
-	fileEndpointTemplate              = "files/v1/assets/%s/files?generate_signed_url=true"
+	fileEndpointTemplate              = "files/v1/assets/%s/files"
+	fileEndpointTemplate2             = "files/v1/assets/%s/files/%s/download_url"
 	keyframeEndpointTemplate          = "files/v1/assets/%s/keyframes?generate_signed_url=true"
 	postAssetEndpointTemplate         = "assets/v1/assets?assign_to_collection=true"
 	storagesMatchingEndpoint          = "files/v1/storages/matching/FILES"
@@ -113,7 +114,6 @@ func (c *IClient) get(apiPath string, body io.Reader, header http.Header) (*http
 	if err != nil {
 		return nil, err
 	}
-
 	resp, err := c.httpClient.Do(req)
 	return resp, err
 }
@@ -220,6 +220,44 @@ func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
 	}
 
 	return retVal, nil
+}
+
+func (c *IClient) parseObjectResponse(resp *http.Response) (string, error) {
+	response := Object{}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if c.Debug {
+		log.Printf("Response: %s", body)
+	}
+
+	// Check response code
+	switch resp.StatusCode {
+	case 200: // Response is OK
+	default:
+		iErr := &IError{}
+		if err := json.Unmarshal(body, iErr); err != nil {
+			if c.Debug {
+				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
+			}
+			return "", &IError{
+				Errors: []string{"UNKNOWN; error message not parsable"},
+			}
+		}
+		return "", iErr
+	}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return "", err
+	}
+
+	return response.URL, nil
 }
 
 func makeSearchBody(title string, tag string, isCollection bool) SearchCriteriaSchema {
@@ -358,6 +396,9 @@ func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {
 	return c.parseUrlResponse(resp)
 }
 
+// the documentation says that you can just add the query parameter "generate_signed_url=true" to the fileEndpointTemplate
+// but when you do that, you get a download URL which, when going to fetch it, doesn't have correct content-disposition nor filename
+// so you have to do this roundabout way instead: first get the fileID, then call fileEndpointTemplate2 which gives you the download URL
 func (c *IClient) GenerateSignedFileUrl(assetID string) (string, error) {
 	header := make(http.Header)
 	header.Add("asset_id", assetID)
@@ -373,8 +414,38 @@ func (c *IClient) GenerateSignedFileUrl(assetID string) (string, error) {
 		}
 		return "", err
 	}
+	defer resp.Body.Close()
 
-	return c.parseUrlResponse(resp)
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	type Response struct {
+		Objects []struct {
+			ID string `json:"id"` // this is the fileID
+		}
+	}
+	var r Response
+	if err := json.Unmarshal(body, &r); err != nil {
+		log.Fatalf("Error decoding JSON: %v", err)
+	}
+
+	// now that we have the fileID, go and get the signed URL
+	fileEndpoint2 := fmt.Sprintf(fileEndpointTemplate2, assetID, r.Objects[0].ID)
+	if c.Debug {
+		log.Println("----")
+		log.Printf("GenerateSignedFileUrl: %s %v", fileEndpoint, header)
+	}
+	resp, err = c.get(fileEndpoint2, nil, header)
+	if err != nil {
+		if c.Debug {
+			log.Printf("IClient.get(%s) returned an error: %v\n", fileEndpoint, err)
+		}
+		return "", err
+	}
+	return c.parseObjectResponse(resp)
 }
 
 func (c *IClient) postAndGetID(endpoint string, reqBody io.Reader, header http.Header) (string, error) {
