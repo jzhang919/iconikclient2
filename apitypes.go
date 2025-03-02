@@ -56,6 +56,7 @@ type ProxyGetUrlSchema struct {
 
 type Object struct {
 	URL  string `json:"url"`
+	ID   string `json:"id"`
 	Type string `json:"type"`
 }
 

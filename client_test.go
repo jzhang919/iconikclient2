@@ -30,8 +30,8 @@ func TestSendRequest(t *testing.T) {
 	}
 	client, _ := NewIClient(creds, server.URL, false)
 
-	req := makeSearchBody("testTitle", "testTag")
-	resp, err := client.SearchWithTag("Teaching")
+	req := makeSearchBody("testTitle", "testTag", false)
+	resp, err := client.SearchWithTag("Teaching", false)
 	if err != nil {
 		t.Fatalf("ApiRequest(%s, %v) failed: %v", searchEndpoint, req, err)
 	}
@@ -73,14 +73,18 @@ func TestIClient_GenerateSignedProxyUrl(t *testing.T) {
 
 func TestIClient_GenerateSignedFileUrl(t *testing.T) {
 	expected := "https://test.com/url"
-	returnStruct := GetResponse{Objects: []Object{{URL: expected}}}
 	assetId := "testAssetId"
+	fileId := "fileId"
 
 	//Start a local HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Test request parameters
 		if strings.TrimPrefix(req.URL.String(), "/") == fmt.Sprintf(fileEndpointTemplate, assetId) {
-			payload, _ := json.Marshal(returnStruct)
+			payload, _ := json.Marshal(GetResponse{Objects: []Object{{ID: fileId}}})
+			rw.Write(payload)
+		}
+		if strings.TrimPrefix(req.URL.String(), "/") == fmt.Sprintf(fileEndpointTemplate2, assetId, fileId) {
+			payload, _ := json.Marshal(Object{URL: expected})
 			rw.Write(payload)
 		}
 	}))
