@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 
 	iconik "github.com/jzhang919/iconikclient2"
@@ -80,7 +81,7 @@ func main() {
 	}
 
 	uploadReq.Header.Set("Authorization", NAU.UploadAuthToken)
-	uploadReq.Header.Set("X-Bz-File-Name", NAU.UploadFilename)
+	uploadReq.Header.Set("X-Bz-File-Name", url.PathEscape(NAU.UploadFilename))
 	uploadReq.Header.Set("X-Bz-Content-Sha1", "do_not_verify") // or provide a valid SHA1 checksum
 	uploadReq.Header.Add("Content-Type", NAU.MimeType)
 
