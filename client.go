@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	MULTIPART_FILESIZE_THRESHOLD      = 100 * 1024 * 1024 // 100MB
 	IconikHost                        = "https://app.iconik.io/API/"
 	searchEndpoint                    = "search/v1/search/"
 	collectionEndpointTemplate        = "assets/v1/collections/%s"
@@ -25,6 +26,8 @@ const (
 	formatIDEndpointTemplate          = "files/v1/assets/%s/formats"
 	filesetsEndpointTemplate          = "files/v1/assets/%s/file_sets"
 	uploadUrlEndpointTemplate         = "files/v1/assets/%s/files/"
+	multipartStartEndpointTemplate    = "files/v1/assets/%s/files/%s/multipart/b2/start/"
+	multipartFinishEndpointTemplate   = "files/v1/assets/%s/files/%s/multipart/b2/finish/"
 	jobStartEndpointTemplate          = "jobs/v1/jobs"
 	uploadUrlFinishedEndpointTemplate = "files/v1/assets/%s/files/%s/"
 	keyframeGenerateEndpointTemplate  = "files/v1/assets/%s/files/%s/keyframes/"
@@ -840,6 +843,70 @@ func (c *IClient) GetUploadUrl(assetID, title, directoryPath, formatID, fileSetI
 	return &frResponse, nil
 }
 
+func (c *IClient) GetMultipartStartUrl(NAU *NewAssetUpload) error {
+	endpoint := fmt.Sprintf(multipartStartEndpointTemplate, NAU.AssetID, NAU.FileReqID)
+	type MultipartStartReq struct {
+		AssetID string `json:"asset_id"`
+		FileID  string `json:"file_id"`
+	}
+	multiStartReqBody := MultipartStartReq{
+		AssetID: NAU.AssetID,
+		FileID:  NAU.FileReqID,
+	}
+	reqBodyJSON, err := json.Marshal(multiStartReqBody)
+	if err != nil {
+		return err
+	}
+	resp, err := c.post(endpoint, bytes.NewReader(reqBodyJSON), http.Header{})
+	if err != nil {
+		if c.Debug {
+			log.Printf("IClient.post(%s) returned an error: %v\n", endpoint, err)
+		}
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if c.Debug {
+		log.Printf("Response: %s", body)
+	}
+
+	if resp.StatusCode != 200 {
+		iErr := &IError{}
+		if err := json.Unmarshal(body, iErr); err != nil {
+			if c.Debug {
+				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
+			}
+			return &IError{
+				Errors: []string{"UNKNOWN; error message not parsable"},
+			}
+		}
+		return iErr
+	}
+
+	type MultipartStartResp struct {
+		AuthorizationToken string `json:"authorization_token"`
+		UploadFileID       string `json:"upload_file_id"`
+		UploadURL          string `json:"upload_url"`
+	}
+
+	frResponse := MultipartStartResp{}
+	err = json.Unmarshal(body, &frResponse)
+	if err != nil {
+		return err
+	}
+	if c.Debug {
+		log.Printf("Upload URL response: %s", string(body))
+	}
+	NAU.UploadAuthToken = frResponse.AuthorizationToken
+	NAU.UploadURL = frResponse.UploadURL
+	NAU.MultipartFileID = frResponse.UploadFileID
+	return nil
+}
+
 // PostStartOfJob will post the start of a job.
 func (c *IClient) PostStartOfJob(assetID, title string) (string, error) {
 	type JobReq struct {
@@ -875,11 +942,17 @@ func (c *IClient) PostStartOfJob(assetID, title string) (string, error) {
 // a NewAssetUpload object that contains all the information needed to upload a file. Once
 // done, you can call FinishUpload to finish the upload.
 func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath, mimeType string, fileSize int64, fileDateCreated time.Time) (*NewAssetUpload, error) {
+	NAU := &NewAssetUpload{
+		MimeType: mimeType,
+		FileSize: fileSize,
+	}
+
 	// create the Asset
 	postAssetResponse, err := c.PostAssetID(collectionID, title)
 	if err != nil {
 		return nil, err
 	}
+	NAU.AssetID = postAssetResponse.Id
 
 	// now make the storageID
 	storageID, err := c.MakeStorageID()
@@ -892,7 +965,6 @@ func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath, mimeT
 	if err != nil {
 		return nil, err
 	}
-
 	// now the filesetID
 	fileSetId, err := c.MakeFileSetID(postAssetResponse.Id, formatID, storageID, title, storagePath)
 	if err != nil {
@@ -904,23 +976,25 @@ func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath, mimeT
 	if err != nil {
 		return nil, err
 	}
+	NAU.UploadURL = frResponse.UploadURL
+	NAU.UploadAuthToken = frResponse.UploadCredentials.AuthorizationToken
+	NAU.UploadFilename = frResponse.UploadFilename
+	NAU.FileReqID = frResponse.Id
+
+	if fileSize > MULTIPART_FILESIZE_THRESHOLD {
+		if err := c.GetMultipartStartUrl(NAU); err != nil {
+			return nil, err
+		}
+	}
 
 	// Note start of job
 	jobID, err := c.PostStartOfJob(postAssetResponse.Id, title)
 	if err != nil {
 		return nil, err
 	}
+	NAU.JobID = jobID
 
-	return &NewAssetUpload{
-		AssetID:         postAssetResponse.Id,
-		UploadURL:       frResponse.UploadURL,
-		UploadAuthToken: frResponse.UploadCredentials.AuthorizationToken,
-		UploadFilename:  frResponse.UploadFilename,
-		MimeType:        mimeType,
-		JobID:           jobID,
-		FileReqID:       frResponse.Id,
-		FileSize:        fileSize,
-	}, nil
+	return NAU, nil
 }
 
 // CloseFileRequest will close the file request.
@@ -1029,12 +1103,62 @@ func (c *IClient) FinishJob(jobID string) error {
 		return iErr
 	}
 	return err
+}
 
+func (c *IClient) FinishMultipartUpload(newAssetUpload *NewAssetUpload) error {
+	if len(newAssetUpload.Sha1List) == 0 {
+		return fmt.Errorf("no sha1 list provided")
+	}
+
+	endpoint := fmt.Sprintf(multipartFinishEndpointTemplate, newAssetUpload.AssetID, newAssetUpload.FileReqID)
+	type FinishMultipartReq struct {
+		Sha1List     []string `json:"sha1_list"`
+		UploadFileID string   `json:"upload_file_id"`
+	}
+	finishMultipartReqBody := FinishMultipartReq{
+		Sha1List:     newAssetUpload.Sha1List,
+		UploadFileID: newAssetUpload.MultipartFileID,
+	}
+	reqBodyJSON, err := json.Marshal(finishMultipartReqBody)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.post(endpoint, bytes.NewReader(reqBodyJSON), http.Header{})
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if c.Debug {
+		log.Printf("Response: %s", body)
+	}
+
+	if resp.StatusCode != 200 {
+		iErr := &IError{}
+		if err := json.Unmarshal(body, iErr); err != nil {
+			if c.Debug {
+				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
+			}
+			return &IError{
+				Errors: []string{"UNKNOWN; error message not parsable"},
+			}
+		}
+		return iErr
+	}
+	return nil
 }
 
 // FinishUpload will finish the upload. (call it after uploading the file), uses previously
 // defined steps.
 func (c *IClient) FinishUpload(newAssetUpload *NewAssetUpload) error {
+	if newAssetUpload.MultipartFileID != "" {
+		if err := c.FinishMultipartUpload(newAssetUpload); err != nil {
+			return err
+		}
+	}
+
 	// patch files
 	if err := c.CloseFileRequest(newAssetUpload.AssetID, newAssetUpload.FileReqID); err != nil {
 		return err

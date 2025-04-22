@@ -81,14 +81,16 @@ type PostAssetResponse struct {
 }
 
 type NewAssetUpload struct {
-	AssetID         string `json:"asset_id"`
-	UploadURL       string `json:"upload_url"`
-	UploadAuthToken string `json:"upload_auth_token"`
-	UploadFilename  string `json:"upload_filename"`
-	MimeType        string `json:"mime_type"`
-	JobID           string `json:"job_id"`
-	FileReqID       string `json:"file_req_id"`
-	FileSize        int64  `json:"file_size"`
+	AssetID         string   `json:"asset_id"`
+	UploadURL       string   `json:"upload_url"`
+	MultipartFileID string   `json:"multipart_file_id"`
+	UploadAuthToken string   `json:"upload_auth_token"`
+	UploadFilename  string   `json:"upload_filename"`
+	MimeType        string   `json:"mime_type"`
+	JobID           string   `json:"job_id"`
+	FileReqID       string   `json:"file_req_id"`
+	FileSize        int64    `json:"file_size"`
+	Sha1List        []string `json:"sha1_list"`
 }
 
 // IError encapsulates an error message returned by the Iconik API.
