@@ -32,6 +32,7 @@ const (
 	uploadUrlFinishedEndpointTemplate = "files/v1/assets/%s/files/%s/"
 	keyframeGenerateEndpointTemplate  = "files/v1/assets/%s/files/%s/keyframes/"
 	patchJobCompleteEndpointTemplate  = "jobs/v1/jobs/%s"
+	createCollectionEndpoint          = "assets/v1/collections/"
 )
 
 // Credentials are the identification required by the Iconik API
@@ -162,16 +163,7 @@ func (c *IClient) parseSearchResponse(resp *http.Response) (*SearchResponse, err
 	switch resp.StatusCode {
 	case 200: // Response is OK
 	default:
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return nil, &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return nil, iErr
+		return nil, iErrorFromBody(resp.StatusCode, body)
 	}
 	err = json.Unmarshal(body, &response)
 	return &response, err
@@ -195,16 +187,7 @@ func (c *IClient) parseUrlResponse(resp *http.Response) (string, error) {
 	switch resp.StatusCode {
 	case 200: // Response is OK
 	default:
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return "", &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return "", iErr
+		return "", iErrorFromBody(resp.StatusCode, body)
 	}
 
 	err = json.Unmarshal(body, &response)
@@ -243,16 +226,7 @@ func (c *IClient) parseObjectResponse(resp *http.Response) (string, error) {
 	switch resp.StatusCode {
 	case 200: // Response is OK
 	default:
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return "", &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return "", iErr
+		return "", iErrorFromBody(resp.StatusCode, body)
 	}
 
 	err = json.Unmarshal(body, &response)
@@ -263,22 +237,33 @@ func (c *IClient) parseObjectResponse(resp *http.Response) (string, error) {
 	return response.URL, nil
 }
 
+// escapeLucene escapes characters that have special meaning in Lucene query
+// syntax so they are treated as literals. Without this, titles containing
+// characters like '?' or '(' cause the query parser to mis-interpret the
+// value and return zero results.
+func escapeLucene(s string) string {
+	const special = `+-&|!(){}[]^"~*?:\/ `
+	var b strings.Builder
+	for _, r := range s {
+		if strings.ContainsRune(special, r) {
+			b.WriteRune('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 func makeSearchBody(title string, tag string, isCollection bool) SearchCriteriaSchema {
-	filter := SearchFilter{
-		Operator: "OR",
-		Terms: []FilterTerm{{
-			Name:  "metadata._gcvi_tags",
-			Value: tag,
-		},
-			{
-				Name:  "title",
-				Value: title,
-			},
-		},
+	var terms []FilterTerm
+	if tag != "" {
+		terms = append(terms, FilterTerm{Name: "metadata._gcvi_tags", Value: tag})
+	}
+	if title != "" {
+		terms = append(terms, FilterTerm{Name: "title", Value: escapeLucene(title)})
 	}
 	schema := SearchCriteriaSchema{
 		DocTypes: []string{"assets"},
-		Filter:   filter,
+		Filter:   SearchFilter{Operator: "OR", Terms: terms},
 	}
 	if isCollection {
 		schema.DocTypes = []string{"collections"}
@@ -288,6 +273,18 @@ func makeSearchBody(title string, tag string, isCollection bool) SearchCriteriaS
 
 func makeProxyUrlBody() ProxyGetUrlSchema {
 	return ProxyGetUrlSchema{}
+}
+
+// iErrorFromBody parses an Iconik API error response body.
+// If the body cannot be parsed as {"errors": [...]} or the list is empty,
+// it falls back to including the raw HTTP status and body text so the caller
+// always sees what Iconik actually returned.
+func iErrorFromBody(statusCode int, body []byte) error {
+	iErr := &IError{}
+	if err := json.Unmarshal(body, iErr); err != nil || len(iErr.Errors) == 0 {
+		return &IError{Errors: []string{fmt.Sprintf("HTTP %d: %s", statusCode, string(body))}}
+	}
+	return iErr
 }
 
 // SearchWithTag performs an Iconik API Search for assets with the matching tag.
@@ -332,16 +329,7 @@ func (c *IClient) GetKeyframeUrl(assetID string) (string, error) {
 	switch resp.StatusCode {
 	case 200: // Response is OK
 	default:
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return "", &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return "", iErr
+		return "", iErrorFromBody(resp.StatusCode, body)
 	}
 
 	err = json.Unmarshal(body, &response)
@@ -469,12 +457,9 @@ func (c *IClient) postAndGetID(endpoint string, reqBody io.Reader, header http.H
 	}
 	if resp.StatusCode != 201 {
 		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
+		if err := json.Unmarshal(body, iErr); err != nil || len(iErr.Errors) == 0 {
 			return "", &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
+				Errors: []string{fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))},
 			}
 		}
 		return "", iErr
@@ -513,16 +498,7 @@ func (c *IClient) patchAndGetID(endpoint string, reqBody io.Reader, header http.
 		log.Printf("Response: %s", body)
 	}
 	if resp.StatusCode != 201 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return "", &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return "", iErr
+		return "", iErrorFromBody(resp.StatusCode, body)
 	}
 
 	type IDResponse struct {
@@ -554,16 +530,7 @@ func (c *IClient) getAndGetID(endpoint string, reqBody io.Reader, header http.He
 		return "", err
 	}
 	if resp.StatusCode != 200 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return "", &IError{
-				Errors: []string{"UNKNOWN: error message nor parsable"},
-			}
-		}
-		return "", iErr
+		return "", iErrorFromBody(resp.StatusCode, body)
 	}
 	err = json.Unmarshal(body, &idResponse)
 	if err != nil {
@@ -604,16 +571,7 @@ func (c IClient) GetCollectionIDs(collectionName string) ([]*CollectionResult, e
 		case 404:
 			return "", nil
 		default:
-			iErr := &IError{}
-			if err := json.Unmarshal(body, iErr); err != nil {
-				if c.Debug {
-					log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-				}
-				return "", &IError{
-					Errors: []string{"UNKNOWN; error message not parsable"},
-				}
-			}
-			return "", iErr
+			return "", iErrorFromBody(resp.StatusCode, body)
 		}
 		err = json.Unmarshal(body, &response)
 		if err != nil {
@@ -659,6 +617,9 @@ func (c IClient) PostAssetID(collectionID, title string) (*PostAssetResponse, er
 		"collection_id": collectionID,
 		"title":         title,
 	}
+	if c.Debug {
+		log.Printf("PostAssetID: %s %v", endpoint, reqBody)
+	}
 	reqBodyJSON, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
@@ -679,20 +640,11 @@ func (c IClient) PostAssetID(collectionID, title string) (*PostAssetResponse, er
 		return nil, err
 	}
 	if c.Debug {
-		log.Printf("Response: %s", body)
+		log.Printf("Response (%d): %s", resp.StatusCode, body)
 	}
 
 	if resp.StatusCode != 201 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return nil, &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return nil, iErr
+		return nil, iErrorFromBody(resp.StatusCode, body)
 	}
 
 	postAssetResponse := PostAssetResponse{}
@@ -820,16 +772,7 @@ func (c *IClient) GetUploadUrl(assetID, title, directoryPath, formatID, fileSetI
 		log.Printf("Response: %s", body)
 	}
 	if resp.StatusCode != 201 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return nil, &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return nil, iErr
+		return nil, iErrorFromBody(resp.StatusCode, body)
 	}
 
 	frResponse := FileReqResponse{}
@@ -875,16 +818,7 @@ func (c *IClient) GetMultipartStartUrl(NAU *NewAssetUpload) error {
 	}
 
 	if resp.StatusCode != 200 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return iErr
+		return iErrorFromBody(resp.StatusCode, body)
 	}
 
 	type MultipartStartResp struct {
@@ -965,6 +899,7 @@ func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath, mimeT
 	if err != nil {
 		return nil, err
 	}
+
 	// now the filesetID
 	fileSetId, err := c.MakeFileSetID(postAssetResponse.Id, formatID, storageID, title, storagePath)
 	if err != nil {
@@ -992,6 +927,7 @@ func (c *IClient) MakeNewAsset(collectionID, fileName, title, storagePath, mimeT
 	if err != nil {
 		return nil, err
 	}
+
 	NAU.JobID = jobID
 
 	return NAU, nil
@@ -1025,16 +961,7 @@ func (c *IClient) CloseFileRequest(assetID, fileReqID string) error {
 		return err
 	}
 	if resp.StatusCode != 200 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return iErr
+		return iErrorFromBody(resp.StatusCode, body)
 	}
 	return nil
 }
@@ -1052,16 +979,7 @@ func (c *IClient) GenerateKeyframes(assetID, fileReqID string) error {
 		return err
 	}
 	if resp.StatusCode != 200 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return iErr
+		return iErrorFromBody(resp.StatusCode, body)
 	}
 	return nil
 }
@@ -1091,16 +1009,7 @@ func (c *IClient) FinishJob(jobID string) error {
 		log.Printf("Response: %s", body)
 	}
 	if resp.StatusCode != 200 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return iErr
+		return iErrorFromBody(resp.StatusCode, body)
 	}
 	return err
 }
@@ -1136,16 +1045,7 @@ func (c *IClient) FinishMultipartUpload(newAssetUpload *NewAssetUpload) error {
 	}
 
 	if resp.StatusCode != 200 {
-		iErr := &IError{}
-		if err := json.Unmarshal(body, iErr); err != nil {
-			if c.Debug {
-				log.Printf("Unmarshal(%v) got %v, wanted to parse", body, err)
-			}
-			return &IError{
-				Errors: []string{"UNKNOWN; error message not parsable"},
-			}
-		}
-		return iErr
+		return iErrorFromBody(resp.StatusCode, body)
 	}
 	return nil
 }
@@ -1174,4 +1074,65 @@ func (c *IClient) FinishUpload(newAssetUpload *NewAssetUpload) error {
 		return err
 	}
 	return nil
+}
+
+// CreateCollection creates a new collection with the given title inside the specified
+// parent collection. Returns the UUID of the newly created collection.
+func (c *IClient) CreateCollection(title, parentCollectionID string) (string, error) {
+	type createCollectionReq struct {
+		Title    string `json:"title"`
+		ParentID string `json:"parent_id"`
+	}
+	reqBody := createCollectionReq{
+		Title:    title,
+		ParentID: parentCollectionID,
+	}
+	reqBodyJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", err
+	}
+	if c.Debug {
+		log.Printf("CreateCollection: %s %s", createCollectionEndpoint, reqBodyJSON)
+	}
+	id, err := c.postAndGetID(createCollectionEndpoint, bytes.NewReader(reqBodyJSON), http.Header{})
+	if err != nil {
+		return "", fmt.Errorf("creating collection %q: %w", title, err)
+	}
+	return id, nil
+}
+
+// GetAssetFileSize returns the declared size in bytes of the first CLOSED file
+// record associated with the given asset. A file is only marked CLOSED after a
+// successful call to FinishUpload, so a partial or failed upload will return 0.
+func (c *IClient) GetAssetFileSize(assetID string) (int64, error) {
+	endpoint := fmt.Sprintf(fileEndpointTemplate, assetID)
+	resp, err := c.get(endpoint, nil, http.Header{})
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	if resp.StatusCode != 200 {
+		return 0, iErrorFromBody(resp.StatusCode, body)
+	}
+	type fileObj struct {
+		Size   int64  `json:"size"`
+		Status string `json:"status"`
+	}
+	type filesResponse struct {
+		Objects []fileObj `json:"objects"`
+	}
+	var r filesResponse
+	if err := json.Unmarshal(body, &r); err != nil {
+		return 0, err
+	}
+	for _, f := range r.Objects {
+		if f.Status == "CLOSED" {
+			return f.Size, nil
+		}
+	}
+	return 0, nil
 }
