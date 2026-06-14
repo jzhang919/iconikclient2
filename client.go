@@ -254,7 +254,7 @@ func escapeLucene(s string) string {
 }
 
 func makeSearchBody(title string, tag string, isCollection bool) SearchCriteriaSchema {
-	var terms []FilterTerm
+	terms := make([]FilterTerm, 0)
 	if tag != "" {
 		terms = append(terms, FilterTerm{Name: "metadata._gcvi_tags", Value: tag})
 	}
@@ -353,19 +353,40 @@ func (c *IClient) SearchWithTitleAndTag(title string, tag string, isCollection b
 	if err != nil {
 		return &SearchResponse{}, err
 	}
-	if c.Debug {
-		log.Println("----")
-		log.Printf("SearchWithTitleAndTag: %s %s", searchEndpoint, body)
-	}
-	resp, err := c.post(searchEndpoint, bytes.NewReader(body), http.Header{})
-	if err != nil {
+
+	var allObjects []IconikObject
+	page := 1
+	for {
+		endpoint := fmt.Sprintf("%s?page=%d&per_page=100", searchEndpoint, page)
 		if c.Debug {
-			log.Printf("IClient.post(%s, %v) returned an error: %v\n", searchEndpoint, body, err)
+			log.Println("----")
+			log.Printf("SearchWithTitleAndTag: %s %s", endpoint, body)
 		}
-		return &SearchResponse{}, err
+		resp, err := c.post(endpoint, bytes.NewReader(body), http.Header{})
+		if err != nil {
+			if c.Debug {
+				log.Printf("IClient.post(%s, %v) returned an error: %v\n", endpoint, body, err)
+			}
+			return &SearchResponse{}, err
+		}
+
+		pageResp, err := c.parseSearchResponse(resp)
+		if err != nil {
+			return &SearchResponse{}, err
+		}
+
+		allObjects = append(allObjects, pageResp.Objects...)
+
+		if page >= pageResp.Pages || len(pageResp.Objects) == 0 {
+			break
+		}
+		page++
 	}
 
-	return c.parseSearchResponse(resp)
+	return &SearchResponse{
+		Objects: allObjects,
+		Total:   len(allObjects),
+	}, nil
 }
 
 func (c *IClient) GenerateSignedProxyUrl(assetID string) (string, error) {

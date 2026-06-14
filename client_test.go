@@ -11,12 +11,18 @@ import (
 
 func TestSendRequest(t *testing.T) {
 	expected := "abc"
-	returnStruct := SearchResponse{Objects: []IconikObject{{Id: expected, Files: []IconikFile{{Name: "test"}}}}}
+	returnStruct := SearchResponse{
+		Objects: []IconikObject{{Id: expected, Files: []IconikFile{{Name: "test"}}}},
+		Page:    1,
+		Pages:   1,
+		PerPage: 100,
+		Total:   1,
+	}
 
 	//Start a local HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Test request parameters
-		if strings.TrimPrefix(req.URL.String(), "/") == searchEndpoint {
+		if strings.HasPrefix(strings.TrimPrefix(req.URL.String(), "/"), searchEndpoint) {
 			payload, _ := json.Marshal(returnStruct)
 			rw.Write(payload)
 		}
