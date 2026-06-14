@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 
 	iconik "github.com/jzhang919/iconikclient2"
 )
@@ -17,7 +18,7 @@ func main() {
 	tokenFlag := flag.String("Token", "", "Enter your access token: ")
 	debugFlag := flag.Bool("Debug", false, "Debugging")
 	searchTitle := flag.String("title", "", "Title you are searching for")
-	searchTag := flag.String("", "", "Tags you are searching for")
+	searchTag := flag.String("tag", "", "Tags you are searching for")
 	flag.Parse()
 
 	creds := iconik.Credentials{
@@ -25,8 +26,10 @@ func main() {
 		Token: *tokenFlag,
 	}
 	client, _ := iconik.NewIClient(creds, "", *debugFlag)
-	resp, _ := client.SearchWithTitleAndTag(*searchTitle, *searchTag, false)
-
+	resp, err := client.SearchWithTitleAndTag(*searchTitle, *searchTag, false)
+	if err != nil {
+		log.Fatalf("Search failed: %v\n", err)
+	}
 	ids := []AssetProxy{}
 	for _, object := range resp.Objects {
 		for _, proxy := range object.Proxies {

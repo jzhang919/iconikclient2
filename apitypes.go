@@ -23,6 +23,10 @@ type FilterTerm struct {
 
 type SearchResponse struct {
 	Objects []IconikObject `json:"objects"`
+	Page    int            `json:"page"`
+	Pages   int            `json:"pages"`
+	PerPage int            `json:"per_page"`
+	Total   int            `json:"total"`
 }
 
 type IconikObject struct {
